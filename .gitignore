@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.local
+*.png
+*.tsbuildinfo
+.qoder.site
+mcp/data/
+resources/*
+!resources/README.md
