@@ -1,0 +1,21 @@
+{
+  "project": "eval-r2",
+  "output_ref": "sites-public",
+  "title": "线上跑的是我本地验证过的那版构建吗?用内容哈希资源指纹核对",
+  "kind": "concept",
+  "judging": "把公网链接交给别人(如比赛论坛帖)或继续在线上浏览器验收之前,判断『线上站点跑的就是我本地验证过的那一版构建』,而不是旧发布或缓存的旧版本。",
+  "evidence": "本次部署到 Qoder Sites 后,线上 HTML 约 58KB,本地 dist/index.html 仅约 1KB(平台注入了 Made with Qoder 壳),HTML 本身无法用来比对版本;但线上 HTML 引用的 /assets/index-D2Z3KUWm.js 与 /assets/index-B3KywYfD.css 的哈希文件名与本地 dist/assets 完全一致。Vite 生产构建的资源文件名由内容哈希生成:内容不变则文件名不变,内容变则文件名变,同一哈希 URL 保证同一内容。不懂这一点,就会漏掉『版本一致性』检查——HTTP 200 且页面能渲染,仍可能是旧构建。",
+  "consequence": "把错误版本当成验收通过:线上浏览器 QA 测的不是本地验证过的功能,对外分享后访客看到旧版或坏版,问题被错误归因于新代码,引发反复重新部署排查。",
+  "verify_action": "取线上 HTML(无需登录态),提取其中 /assets/*.js 与 *.css 的带哈希文件名,与本地 dist/assets 下的文件名逐一比对:全部一致即为同一版构建;不一致则说明线上是旧版或被缓存,需重新发布或排查缓存。更严格时,下载线上资源计算 SHA-256 与本地文件哈希比对。",
+  "sources": [
+    {
+      "title": "Deploy Your VitePress Site",
+      "url": "https://vitepress.dev/guide/deploy"
+    },
+    {
+      "title": "Cache-Control header - MDN",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control"
+    }
+  ],
+  "branch": "发布与验收"
+}

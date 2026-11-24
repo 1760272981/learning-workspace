@@ -5,16 +5,19 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applySubmit, makeApplication, CAP_PER_OUTPUT, type Store, type SubmitInput, type Kind } from "../shared/model.ts";
+import { assembleStore } from "../functions/core.ts";
+import { loadRows } from "../functions/database.ts";
+import { createFileDb, LOCAL_OWNER } from "./file-db.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const serverPath = path.join(root, "mcp", "server.ts");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lw-mcp-test-"));
-const storePath = path.join(tmp, "store.json");
+const dataPath = path.join(tmp, "lw-local-db.json");
 
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [serverPath],
-  env: { ...process.env, LW_STORE: storePath },
+  env: { ...process.env, LW_LOCAL_DATA_FILE: dataPath, LW_USER_TOKEN: "", LW_API_BASE: "" },
 });
 const client = new Client({ name: "lw-selftest", version: "0.1.0" });
 await client.connect(transport);
@@ -130,7 +133,8 @@ interface StoreShape {
     }
   >;
 }
-const store = JSON.parse(fs.readFileSync(storePath, "utf8")) as StoreShape;
+const db = createFileDb(dataPath);
+const store = assembleStore(await loadRows(db, LOCAL_OWNER)) as StoreShape;
 const p = store.projects["personal-blog"];
 check(p.concepts.length === 3, "存储含 3 条概念", `got ${p.concepts.length}`);
 const today = new Date().toISOString().slice(0, 10);

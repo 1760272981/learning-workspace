@@ -3,9 +3,10 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { KnowledgeTree } from './components/KnowledgeTree'
 import { NodeDetail } from './components/NodeDetail'
 import { AddKnowledgeModal } from './components/AddKnowledgeModal'
+import { LandingPage } from './components/LandingPage'
+import { TokenPanel } from './components/TokenPanel'
 import { ToastStack, type ToastItem } from './components/Toast'
 import { useKnowledgeStore } from './hooks/useKnowledgeStore'
-import { DEMO_PROJECT_ID, DEMO_PROJECT_NAME } from './data/demo-project'
 import type { MarkStatus, SubmitInput, SubmitResult, Concept } from './types'
 
 type SortKey = 'default' | 'newest' | 'branch' | 'title'
@@ -30,8 +31,9 @@ const latestText = (c: Concept) => {
 
 export default function App() {
   const {
-    store, projectIds, projectId, setProjectId, concepts, projectName, isDemo,
-    marks, mark, addConcept, addVerification, deleteConcept, restoreConcept, loading, error, setError,
+    store, projectIds, projectId, setProjectId, concepts, projectName,
+    marks, mark, addConcept, addVerification, deleteConcept, loading, error, setError, usingCache,
+    user, mode, authLoading, login, register, logout,
   } = useKnowledgeStore()
 
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -41,6 +43,8 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sort, setSort] = useState<SortKey>('default')
   const [toasts, setToasts] = useState<ToastItem[]>([])
+  const [tokenPanelOpen, setTokenPanelOpen] = useState(false)
+  const [logoutBusy, setLogoutBusy] = useState(false)
   const isDesktop = useMediaQuery('(min-width: 1024px)')
 
   const dismissToast = useCallback((id: string) => setToasts((p) => p.filter((t) => t.id !== id)), [])
@@ -78,8 +82,8 @@ export default function App() {
   const filtersActive = query.trim() !== '' || branchFilter !== 'all' || statusFilter !== 'all'
   const clearFilters = () => { setQuery(''); setBranchFilter('all'); setStatusFilter('all') }
 
-  const handleAdd = useCallback((input: SubmitInput): SubmitResult => {
-    const result = addConcept(input)
+  const handleAdd = useCallback(async (input: SubmitInput): Promise<SubmitResult> => {
+    const result = await addConcept(input)
     if (result.status === 'accepted' || result.status === 'linked') {
       setModalOpen(false)
       if (result.node_id) setActiveId(result.node_id)
@@ -91,26 +95,45 @@ export default function App() {
     return result
   }, [addConcept, pushToast])
 
-  const handleVerify = useCallback((id: string, text: string) => {
-    addVerification(id, text)
-    pushToast({ kind: 'success', message: '已记录一次真实验收，这条知识更长在你身上了' })
+  const handleVerify = useCallback(async (id: string, text: string) => {
+    const ok = await addVerification(id, text)
+    if (ok) pushToast({ kind: 'success', message: '已记录一次真实验收，这条知识更长在你身上了' })
+    return ok
   }, [addVerification, pushToast])
 
-  const handleMark = useCallback((id: string, status: MarkStatus) => mark(id, status), [mark])
+  const handleMark = useCallback(async (id: string, status: MarkStatus) => mark(id, status), [mark])
 
-  const handleDelete = useCallback((id: string) => {
-    const snap = deleteConcept(id)
-    if (!snap) return
+  const handleDelete = useCallback(async (id: string) => {
+    const ok = await deleteConcept(id)
+    if (!ok) return false
     if (activeId === id) setActiveId(null)
-    pushToast({
-      kind: 'warning',
-      message: `已删除「${snap.concept.title}」`,
-      actionLabel: '撤销',
-      onAction: () => { restoreConcept(snap); setActiveId(snap.concept.id); pushToast({ kind: 'info', message: '已恢复这条知识' }) },
-    })
-  }, [deleteConcept, restoreConcept, activeId, pushToast])
+    pushToast({ kind: 'warning', message: mode === 'local' ? '已从本地删除这条知识' : '已从云端删除这条知识' })
+    return true
+  }, [deleteConcept, activeId, pushToast, mode])
 
-  const projectLabel = (id: string) => store.projects[id]?.name || (id === DEMO_PROJECT_ID ? DEMO_PROJECT_NAME : id)
+  useEffect(() => {
+    setActiveId(null)
+    setModalOpen(false)
+    setTokenPanelOpen(false)
+    setQuery('')
+    setBranchFilter('all')
+    setStatusFilter('all')
+    setSort('default')
+  }, [user?.id])
+
+  const handleLogout = useCallback(async () => {
+    if (logoutBusy) return
+    setLogoutBusy(true)
+    try {
+      await logout()
+    } catch (cause) {
+      pushToast({ kind: 'error', message: cause instanceof Error ? cause.message : '退出结果未确认，请稍后重试。' })
+    } finally {
+      setLogoutBusy(false)
+    }
+  }, [logout, logoutBusy, pushToast])
+
+  const projectLabel = (id: string) => store.projects[id]?.name || id
 
   const selectCls = 'text-sm rounded-full border border-leaf-200 bg-white/80 px-3 py-1.5 text-ink focus:outline-none focus:border-leaf-500 cursor-pointer'
 
@@ -125,10 +148,42 @@ export default function App() {
     />
   )
 
+  const brand = (
+    <div className="flex items-center gap-3 min-w-0">
+      <span className="shrink-0 w-9 h-9 rounded-2xl bg-gradient-to-br from-leaf-400 to-leaf-600 flex items-center justify-center shadow-card">
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 21V11M12 11C12 7 9 4 4 4c0 5 3 8 8 7zM12 13c0-3 3-6 8-6c0 4-3 7-8 6z" />
+        </svg>
+      </span>
+      <div className="min-w-0">
+        <h1 className="font-display text-base sm:text-lg font-semibold leading-tight truncate">Learning Workspace</h1>
+        <p className="hidden sm:block text-[11px] text-leaf-700/70 leading-tight">Build with AI. Grow beyond AI. · 以判断与验收为中心</p>
+      </div>
+    </div>
+  )
+
+  if (authLoading) {
+    return (
+      <div className="h-screen flex flex-col garden-bg text-ink">
+        <header className="shrink-0 border-b border-leaf-100 bg-cream/80 px-4 sm:px-6 py-3">{brand}</header>
+        <div className="flex flex-1 items-center justify-center text-sm text-leaf-700/70">正在检查登录状态…</div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="h-screen flex flex-col garden-bg text-ink">
+        <header className="shrink-0 border-b border-leaf-100 bg-cream/80 px-4 sm:px-6 py-3">{brand}</header>
+        <LandingPage error={error} onClearError={() => setError(null)} onLogin={login} onRegister={register} />
+      </div>
+    )
+  }
+
   return (
     <div className="h-screen flex flex-col garden-bg text-ink">
       {/* 顶栏 */}
-      <header className="shrink-0 z-30 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-cream/80 backdrop-blur border-b border-leaf-100">
+      <header className="relative shrink-0 z-30 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-cream/80 backdrop-blur border-b border-leaf-100">
         <div className="flex items-center gap-3 min-w-0">
           <span className="shrink-0 w-9 h-9 rounded-2xl bg-gradient-to-br from-leaf-400 to-leaf-600 flex items-center justify-center shadow-card">
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -141,11 +196,22 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setActiveId(null) }} aria-label="切换项目" className={`${selectCls} hidden sm:block max-w-[160px]`}>
-            {projectIds.map((id) => <option key={id} value={id}>{projectLabel(id)}</option>)}
-          </select>
-          {isDemo && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-honey-100 text-honey-600 border border-honey-300 whitespace-nowrap">演示数据</span>
+          {projectIds.length > 0 && (
+            <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setActiveId(null) }} aria-label="切换项目" className={`${selectCls} hidden sm:block max-w-[160px]`}>
+              {projectIds.map((id) => <option key={id} value={id}>{projectLabel(id)}</option>)}
+            </select>
+          )}
+          {mode === 'local' && <span className="hidden md:block rounded-full border border-leaf-200 bg-leaf-50 px-3 py-1.5 text-xs text-leaf-700">本地模式 · 无需登录</span>}
+          {mode === 'cloud' && (
+            <>
+              <span className="hidden md:block max-w-[120px] truncate text-xs text-leaf-700/70" title={user.username}>{user.username}</span>
+              <button onClick={() => setTokenPanelOpen(true)} aria-expanded={tokenPanelOpen} className="px-3 py-2 text-xs rounded-full border border-leaf-200 bg-white/80 text-leaf-700 font-semibold hover:bg-leaf-50">
+                我的令牌
+              </button>
+              <button onClick={() => void handleLogout()} disabled={logoutBusy} className="px-3 py-2 text-xs rounded-full border border-leaf-200 text-leaf-700/70 hover:bg-leaf-50 disabled:opacity-40">
+                {logoutBusy ? '退出中…' : '退出'}
+              </button>
+            </>
           )}
           <button onClick={() => setModalOpen(true)} className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm rounded-full bg-leaf-600 text-white font-semibold hover:bg-leaf-700 shadow-card transition-colors">
             <span className="text-base leading-none">＋</span><span>记录知识</span>
@@ -187,7 +253,7 @@ export default function App() {
       </div>
 
       {error && (
-        <div className="shrink-0 px-4 sm:px-6 py-2 bg-red-50 border-b border-red-200 text-sm text-red-600 flex items-center justify-between">
+        <div className={`shrink-0 px-4 sm:px-6 py-2 border-b text-sm flex items-center justify-between gap-3 ${usingCache ? 'bg-honey-50 border-honey-200 text-honey-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
           <span>{error}</span>
           <button onClick={() => setError(null)} aria-label="关闭错误提示" className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
         </div>
@@ -205,8 +271,8 @@ export default function App() {
             <div className="h-full flex items-center justify-center p-6">
               <div className="text-center max-w-sm animate-riseIn">
                 <div className="text-5xl mb-3">🌱</div>
-                <h2 className="font-display text-xl font-semibold text-ink mb-2">这里还是一片空地</h2>
-                <p className="text-sm text-leaf-700/70 mb-5">把一次 AI 产出用三问拆解，记下你的判断与验收，藤蔓就会长出第一颗果实。</p>
+                <h2 className="font-display text-xl font-semibold text-ink mb-2">还没有学习点</h2>
+                <p className="text-sm text-leaf-700/70 mb-5">还没有学习点，用 MCP 提交或手动添加。把一次 AI 产出用三问拆解，记下你的判断与验收。</p>
                 <button onClick={() => setModalOpen(true)} className="px-5 py-2.5 rounded-full bg-leaf-600 text-white font-semibold hover:bg-leaf-700 shadow-card">记录第一条知识</button>
               </div>
             </div>
@@ -279,6 +345,17 @@ export default function App() {
             branches={branches}
             onClose={() => setModalOpen(false)}
             onSubmit={handleAdd}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {mode === 'cloud' && tokenPanelOpen && (
+          <TokenPanel
+            key={`tokens-${user.id}`}
+            user={user}
+            onClose={() => setTokenPanelOpen(false)}
+            onNotify={(message, kind = 'info') => pushToast({ kind, message })}
           />
         )}
       </AnimatePresence>

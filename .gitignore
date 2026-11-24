@@ -1,10 +1,19 @@
-node_modules
-dist
+node_modules/
+dist/
+local-data/
 .env
-.env.local
-*.png
+.env.*
+!.env.example
+*.local
 *.tsbuildinfo
 .qoder.site
-mcp/data/
+.Learning Workspace.qoder.site
 resources/*
 !resources/README.md
+mcp/data/
+evidence/*.png
+scripts/verify-*.png
+scripts/verify-*.jpg
+scripts/archive/
+.lw-browser/
+tmp/

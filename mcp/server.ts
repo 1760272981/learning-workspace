@@ -1,26 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { applySubmit, type Store, type SubmitInput } from "../shared/model.ts";
-
-const dir = path.dirname(fileURLToPath(import.meta.url));
-const STORE = process.env.LW_STORE || path.join(dir, "data", "store.json");
-
-function load(): Store {
-  try {
-    return JSON.parse(fs.readFileSync(STORE, "utf8")) as Store;
-  } catch {
-    return { projects: {} };
-  }
-}
-
-function save(store: Store): void {
-  fs.mkdirSync(path.dirname(STORE), { recursive: true });
-  fs.writeFileSync(STORE, JSON.stringify(store, null, 2), "utf8");
-}
+import type { SubmitInput } from "../shared/model.ts";
+import { submitToCloud } from "./cloud.ts";
+import { submitToLocal } from "./local.ts";
 
 function reply(obj: Record<string, unknown>) {
   return { content: [{ type: "text" as const, text: JSON.stringify(obj) }] };
@@ -73,13 +56,13 @@ server.registerTool(
         .describe("稳定分支建议（如 可维护性 / 发布与验收），主父节点由产品定"),
     },
   },
-  (args: SubmitInput) => {
-    const store = load();
-    const result = applySubmit(store, args);
-    if (result.status === "accepted" || result.status === "linked") {
-      save(store);
+  async (args: SubmitInput) => {
+    const userToken = process.env.LW_USER_TOKEN?.trim();
+    const apiBase = process.env.LW_API_BASE?.trim();
+    if (userToken && apiBase) {
+      return reply(await submitToCloud(args, { apiBase, userToken }) as unknown as Record<string, unknown>);
     }
-    return reply(result as unknown as Record<string, unknown>);
+    return reply(await submitToLocal(args) as unknown as Record<string, unknown>);
   }
 );
 

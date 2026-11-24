@@ -8,7 +8,7 @@ interface Props {
   projectName: string
   branches: string[]
   onClose: () => void
-  onSubmit: (input: SubmitInput) => SubmitResult
+  onSubmit: (input: SubmitInput) => Promise<SubmitResult>
 }
 
 const FIELD_LABEL: Record<string, string> = {
@@ -42,6 +42,8 @@ export function AddKnowledgeModal({ projectId, projectName, branches, onClose, o
   const [verifyAction, setVerifyAction] = useState('')
   const [sources, setSources] = useState([emptySource()])
   const [result, setResult] = useState<SubmitResult | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [requestError, setRequestError] = useState<string | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -84,9 +86,18 @@ export function AddKnowledgeModal({ projectId, projectName, branches, onClose, o
   const missing = useMemo(() => new Set(validateSubmit(input)), [input])
   const showMissing = result?.status === 'missing_evidence'
 
-  const handleSubmit = () => {
-    const r = onSubmit(input)
-    setResult(r)
+  const handleSubmit = async () => {
+    if (submitting) return
+    setSubmitting(true)
+    setRequestError(null)
+    try {
+      const r = await onSubmit(input)
+      setResult(r)
+    } catch (cause) {
+      setRequestError(cause instanceof Error ? cause.message : '写入结果未知，请先读取对账，不要直接重发')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const setSource = (i: number, key: 'title' | 'url', value: string) => {
@@ -214,14 +225,19 @@ export function AddKnowledgeModal({ projectId, projectName, branches, onClose, o
           )}
         </div>
 
-        <div className="shrink-0 px-5 py-3 border-t border-leaf-100 bg-cream flex items-center justify-between gap-3">
+        <div className="shrink-0 px-5 py-3 border-t border-leaf-100 bg-cream flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {requestError && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+              {requestError}
+            </div>
+          )}
           <p className="text-[11px] text-leaf-700/55 hidden sm:block">
             {missing.size > 0 ? `还需补齐 ${missing.size} 项` : '三问与来源已就绪'}
           </p>
           <div className="flex items-center gap-2 ml-auto">
             <button onClick={onClose} className="px-4 py-2 text-sm rounded-full border border-leaf-200 text-ink/70 hover:bg-leaf-50">取消</button>
-            <button onClick={handleSubmit} className="px-5 py-2 text-sm rounded-full bg-leaf-600 text-white font-semibold hover:bg-leaf-700 shadow-card transition-colors">
-              提交入树
+            <button onClick={handleSubmit} disabled={submitting} className="px-5 py-2 text-sm rounded-full bg-leaf-600 text-white font-semibold hover:bg-leaf-700 shadow-card transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {submitting ? '正在写入…' : '提交入树'}
             </button>
           </div>
         </div>

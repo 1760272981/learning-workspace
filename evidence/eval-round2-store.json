@@ -1,0 +1,70 @@
+{
+  "projects": {
+    "eval-r2": {
+      "days": {
+        "2026-11-11": 2
+      },
+      "outputs": {
+        "sites-public": 2
+      },
+      "concepts": [
+        {
+          "id": "n_xwfcxigj",
+          "title": "线上跑的是我本地验证过的那版构建吗?用内容哈希资源指纹核对",
+          "kind": "concept",
+          "branch": "发布与验收",
+          "created_at": "2026-11-11T16:21:06.314Z",
+          "applications": [
+            {
+              "output_ref": "sites-public",
+              "judging": "把公网链接交给别人(如比赛论坛帖)或继续在线上浏览器验收之前,判断『线上站点跑的就是我本地验证过的那一版构建』,而不是旧发布或缓存的旧版本。",
+              "evidence": "本次部署到 Qoder Sites 后,线上 HTML 约 58KB,本地 dist/index.html 仅约 1KB(平台注入了 Made with Qoder 壳),HTML 本身无法用来比对版本;但线上 HTML 引用的 /assets/index-D2Z3KUWm.js 与 /assets/index-B3KywYfD.css 的哈希文件名与本地 dist/assets 完全一致。Vite 生产构建的资源文件名由内容哈希生成:内容不变则文件名不变,内容变则文件名变,同一哈希 URL 保证同一内容。不懂这一点,就会漏掉『版本一致性』检查——HTTP 200 且页面能渲染,仍可能是旧构建。",
+              "consequence": "把错误版本当成验收通过:线上浏览器 QA 测的不是本地验证过的功能,对外分享后访客看到旧版或坏版,问题被错误归因于新代码,引发反复重新部署排查。",
+              "verify_action": "取线上 HTML(无需登录态),提取其中 /assets/*.js 与 *.css 的带哈希文件名,与本地 dist/assets 下的文件名逐一比对:全部一致即为同一版构建;不一致则说明线上是旧版或被缓存,需重新发布或排查缓存。更严格时,下载线上资源计算 SHA-256 与本地文件哈希比对。",
+              "sources": [
+                {
+                  "title": "Deploy Your VitePress Site",
+                  "url": "https://vitepress.dev/guide/deploy"
+                },
+                {
+                  "title": "Cache-Control header - MDN",
+                  "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control"
+                }
+              ],
+              "created_at": "2026-11-11T16:21:06.314Z"
+            }
+          ],
+          "verifications": []
+        },
+        {
+          "id": "n_m4l51k3g",
+          "title": "线上 HTML 比本地 dist 大几十 KB,是部署坏了吗?——平台注入壳的识别与影响判断",
+          "kind": "fact",
+          "branch": "发布与验收",
+          "created_at": "2026-11-11T16:21:12.322Z",
+          "applications": [
+            {
+              "output_ref": "sites-public",
+              "judging": "验收已发布站点时,判断『线上 HTML 与本地 dist/index.html 不一致(约 58KB vs 约 1KB)』是部署失败或传错文件,还是托管平台注入外壳的正常行为;并判断注入的壳是否影响自有页面(样式、脚本执行、根节点)。",
+              "evidence": "本次 Qoder Sites 部署后,实测线上 HTML 含平台注入的 Made with Qoder 壳,约 58KB,而本地 dist/index.html 约 1KB;但自有 head 资源引用与根节点 div#root 原样保留,资源哈希与本地构建一致,无 Cookie 浏览器上下文正常渲染知识树(4 个演示水果 + 演示数据徽标)。Qoder 官方站点文档未写明注入行为,此为本次实测观察;托管平台改写 HTML 有公开先例(如 Cloudflare Rocket Loader 注入并改写脚本加载,官方专门提供 data-cfasync 豁免机制)。不懂这一点,会把正常注入误判为部署失败,或漏检壳对自有页面的干扰。",
+              "consequence": "误判方向浪费排查时间:把平台正常行为当部署错误反复重发;或反过来,注入壳的全局样式/脚本实际干扰自有页面(布局覆盖、脚本执行顺序改变)却未检查,对外分享后才暴露。",
+              "verify_action": "把线上 HTML 与本地 dist/index.html 做 diff:确认差异仅为平台注入的壳,自有资源引用、div#root 与关键标记原样保留;再在浏览器 DevTools 检查注入的样式/脚本是否覆盖自有 CSS 或改变脚本执行顺序,页面交互(树渲染、演示数据徽标、按钮)正常即判壳无干扰。",
+              "sources": [
+                {
+                  "title": "站点 - Qoder 官方文档",
+                  "url": "https://docs.qoder.com/zh/qoder/sites"
+                },
+                {
+                  "title": "Ignore JavaScripts in Rocket Loader - Cloudflare Docs",
+                  "url": "https://developers.cloudflare.com/speed/optimization/content/rocket-loader/ignore-javascripts/"
+                }
+              ],
+              "created_at": "2026-11-11T16:21:12.322Z"
+            }
+          ],
+          "verifications": []
+        }
+      ]
+    }
+  }
+}

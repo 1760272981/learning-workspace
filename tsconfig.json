@@ -17,5 +17,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "shared", "mcp", "scripts"]
+  "include": ["src", "shared", "mcp", "scripts", "functions/core.ts", "functions/database.ts", "functions/handler.ts"]
 }

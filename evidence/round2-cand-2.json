@@ -1,0 +1,21 @@
+{
+  "project": "eval-r2",
+  "output_ref": "sites-public",
+  "title": "线上 HTML 比本地 dist 大几十 KB,是部署坏了吗?——平台注入壳的识别与影响判断",
+  "kind": "fact",
+  "judging": "验收已发布站点时,判断『线上 HTML 与本地 dist/index.html 不一致(约 58KB vs 约 1KB)』是部署失败或传错文件,还是托管平台注入外壳的正常行为;并判断注入的壳是否影响自有页面(样式、脚本执行、根节点)。",
+  "evidence": "本次 Qoder Sites 部署后,实测线上 HTML 含平台注入的 Made with Qoder 壳,约 58KB,而本地 dist/index.html 约 1KB;但自有 head 资源引用与根节点 div#root 原样保留,资源哈希与本地构建一致,无 Cookie 浏览器上下文正常渲染知识树(4 个演示水果 + 演示数据徽标)。Qoder 官方站点文档未写明注入行为,此为本次实测观察;托管平台改写 HTML 有公开先例(如 Cloudflare Rocket Loader 注入并改写脚本加载,官方专门提供 data-cfasync 豁免机制)。不懂这一点,会把正常注入误判为部署失败,或漏检壳对自有页面的干扰。",
+  "consequence": "误判方向浪费排查时间:把平台正常行为当部署错误反复重发;或反过来,注入壳的全局样式/脚本实际干扰自有页面(布局覆盖、脚本执行顺序改变)却未检查,对外分享后才暴露。",
+  "verify_action": "把线上 HTML 与本地 dist/index.html 做 diff:确认差异仅为平台注入的壳,自有资源引用、div#root 与关键标记原样保留;再在浏览器 DevTools 检查注入的样式/脚本是否覆盖自有 CSS 或改变脚本执行顺序,页面交互(树渲染、演示数据徽标、按钮)正常即判壳无干扰。",
+  "sources": [
+    {
+      "title": "站点 - Qoder 官方文档",
+      "url": "https://docs.qoder.com/zh/qoder/sites"
+    },
+    {
+      "title": "Ignore JavaScripts in Rocket Loader - Cloudflare Docs",
+      "url": "https://developers.cloudflare.com/speed/optimization/content/rocket-loader/ignore-javascripts/"
+    }
+  ],
+  "branch": "发布与验收"
+}

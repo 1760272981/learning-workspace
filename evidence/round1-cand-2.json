@@ -1,0 +1,21 @@
+{
+  "project": "eval-r1",
+  "output_ref": "tailwind-fix",
+  "title": "类名挂上了但 computed style 是透明/默认值：怎么区分'样式没生成'和'样式被覆盖'？",
+  "kind": "operation",
+  "judging": "下一轮浏览器验收再遇到样式异常时，判断该在哪一层动手：改组件源码（规则存在但被层叠/优先级覆盖），还是查构建工具链（规则根本没生成，如 content 漏扫、配置过期）——避免在正确的代码上做'修复'。",
+  "evidence": "本次产出正是'未生成'而非'被覆盖'的实例：bg-cream 类存在于 modal/bottom-sheet 元素上，getComputedStyle 得 backgroundColor=rgba(0,0,0,0)，dev server 服务的 CSS 里检索不到任何 bg-cream 规则（dist 产物里有）；组件代码零改动，重启 dev server 后即恢复 rgb(253,252,246)。不懂这个两步区分法，会漏掉'先确认规则是否存在于实际服务的样式表'这一步，直接去改本来正确的 JSX/CSS。",
+  "consequence": "在正确代码上引入无谓改动甚至新 bug；或把工具链问题当代码问题反复修不好，拖延即将进行的视觉验收。",
+  "verify_action": "对异常元素执行 getComputedStyle(el).backgroundColor 记录实际值；再在 DevTools 的 Styles/Computed 面板（或直接检索服务的 CSS 文本）查该类规则：规则不存在 → 查 content 扫描与配置是否过期；规则存在但被划掉/未生效 → 查层叠顺序与优先级。先定位层级，再决定改代码还是改环境。",
+  "sources": [
+    {
+      "title": "Window.getComputedStyle() - Web API - MDN",
+      "url": "https://developer.mozilla.org/zh-CN/docs/Web/API/Window/getComputedStyle"
+    },
+    {
+      "title": "CSS features reference | Chrome DevTools（Elements > Styles / Computed 面板诊断 CSS）",
+      "url": "https://developer.chrome.com/docs/devtools/css/reference"
+    }
+  ],
+  "branch": "可维护性"
+}

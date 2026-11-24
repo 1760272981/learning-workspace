@@ -1,0 +1,25 @@
+{
+  "project": "eval-r1",
+  "output_ref": "tailwind-fix",
+  "title": "改完 Tailwind/Vite 构建配置后，怎么确认长驻 dev server 正在提供当前配置的 CSS，再相信浏览器 QA？",
+  "kind": "concept",
+  "judging": "即将在真实浏览器里复验 modal/bottom-sheet 背景修复并完成本轮视觉验收：判断'浏览器里看到的样式'是否可信——它必须来自当前配置的构建产物，而不是长驻 dev server 的过期输出；否则无法区分'修复失败'与'环境过期'。",
+  "evidence": "本次产出：tailwind.config.js 新增 cream 等自定义色板后，长驻 Vite dev server 服务的 CSS 中检索不到任何 bg-cream 规则，而全新生产构建 dist/assets/index-B3KywYfD.css 含 .bg-cream{background-color:rgb(253 252 246 / …)}；元素挂着 bg-cream 类，computed backgroundColor 却是 rgba(0,0,0,0)，重启 dev server 后变为 rgb(253,252,246)。不懂'长驻 dev server 可能不按当前配置重新生成工具类'这一点，就会漏掉浏览器 QA 前的'服务产物与当前配置一致性'前置检查，把工具链过期误判为组件代码缺陷。",
+  "consequence": "误判后果大且马上会发生：可能去'修复'本来正确的组件代码、错误否定一次真实修复，或让整轮浏览器验收的所有结论建立在过期产物上而作废。",
+  "verify_action": "每次改过 tailwind.config.js 或 vite 配置后、开始浏览器验收前：在 DevTools Network 面板打开 dev server 实际服务的 CSS 响应，搜索目标工具类（如 bg-cream），必要时与 dist 构建产物对比；类名已挂上但规则搜不到 → 重启 dev server，再复查 computed style 等于预期值（如 rgb(253,252,246)），确认后才开始 QA 下结论。",
+  "sources": [
+    {
+      "title": "为什么Tailwind CSS在 Vite 项目里不生效，应该怎么排查？（含'改过 tailwind.config.js 后必须重启 npm run dev'与 Network 面板检索 CSS 验证法）",
+      "url": "https://m.php.cn/faq/3043138.html"
+    },
+    {
+      "title": "Tailwind CSS v3 官方文档：Configuration（tailwind.config.js / theme.extend / content 扫描）",
+      "url": "https://v3.tailwindcss.com/docs/configuration"
+    },
+    {
+      "title": "Vite reloading over and over again · Issue #12724 · vitejs/vite（日志显示 Vite 只对自己的 vite.config.ts 变更自动重启）",
+      "url": "https://github.com/vitejs/vite/issues/12724"
+    }
+  ],
+  "branch": "发布与验收"
+}

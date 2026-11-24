@@ -7,9 +7,9 @@ interface NodeDetailProps {
   concept: Concept | null
   markStatus: MarkStatus | undefined
   onClose: () => void
-  onMark: (id: string, status: MarkStatus) => void
-  onVerify: (id: string, text: string) => void
-  onDelete: (id: string) => void
+  onMark: (id: string, status: MarkStatus) => Promise<boolean>
+  onVerify: (id: string, text: string) => Promise<boolean>
+  onDelete: (id: string) => Promise<boolean>
 }
 
 const kindLabel = { concept: '概念', operation: '操作', fact: '事实' }
@@ -23,6 +23,7 @@ const item = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }
 
 export function NodeDetail({ concept, markStatus, onClose, onMark, onVerify, onDelete }: NodeDetailProps) {
   const [verifyText, setVerifyText] = useState('')
+  const [pending, setPending] = useState<string | null>(null)
 
   if (!concept) {
     return (
@@ -35,11 +36,20 @@ export function NodeDetail({ concept, markStatus, onClose, onMark, onVerify, onD
   const latest = concept.applications[concept.applications.length - 1]
   const verifications = concept.verifications || []
 
-  const submitVerify = () => {
+  const submitVerify = async () => {
     const t = verifyText.trim()
-    if (!t) return
-    onVerify(concept.id, t)
-    setVerifyText('')
+    if (!t || pending) return
+    setPending('verify')
+    const ok = await onVerify(concept.id, t)
+    if (ok) setVerifyText('')
+    setPending(null)
+  }
+
+  const runAction = async (name: string, action: () => Promise<boolean>) => {
+    if (pending) return
+    setPending(name)
+    await action()
+    setPending(null)
   }
 
   return (
@@ -126,10 +136,10 @@ export function NodeDetail({ concept, markStatus, onClose, onMark, onVerify, onD
         />
         <button
           onClick={submitVerify}
-          disabled={!verifyText.trim()}
+          disabled={!verifyText.trim() || pending !== null}
           className="mt-2 px-3 py-1.5 text-sm rounded-full bg-leaf-600 text-white font-semibold hover:bg-leaf-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          保存验收记录
+          {pending === 'verify' ? '正在保存…' : '保存验收记录'}
         </button>
       </motion.section>
 
@@ -149,7 +159,8 @@ export function NodeDetail({ concept, markStatus, onClose, onMark, onVerify, onD
 
       <motion.div variants={item} className="flex items-center gap-2 pt-3 border-t border-leaf-100">
         <button
-          onClick={() => onMark(concept.id, 'understood')}
+          onClick={() => void runAction('understood', () => onMark(concept.id, 'understood'))}
+          disabled={pending !== null}
           className={`px-3 py-1.5 text-sm rounded-full border font-semibold transition-colors ${
             markStatus === 'understood' ? 'bg-honey-400 text-white border-honey-500' : 'bg-honey-100 text-honey-600 border-honey-300 hover:bg-honey-300/60'
           }`}
@@ -157,7 +168,8 @@ export function NodeDetail({ concept, markStatus, onClose, onMark, onVerify, onD
           我理解了
         </button>
         <button
-          onClick={() => onMark(concept.id, 'skipped')}
+          onClick={() => void runAction('skipped', () => onMark(concept.id, 'skipped'))}
+          disabled={pending !== null}
           className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
             markStatus === 'skipped' ? 'bg-slate-500 text-white border-slate-500' : 'bg-white text-ink/60 border-leaf-200 hover:bg-leaf-50'
           }`}
@@ -165,7 +177,8 @@ export function NodeDetail({ concept, markStatus, onClose, onMark, onVerify, onD
           暂时跳过
         </button>
         <button
-          onClick={() => onDelete(concept.id)}
+          onClick={() => void runAction('delete', () => onDelete(concept.id))}
+          disabled={pending !== null}
           aria-label="删除这条知识"
           className="ml-auto px-3 py-1.5 text-sm rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
         >
