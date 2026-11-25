@@ -58,9 +58,10 @@ server.registerTool(
   },
   async (args: SubmitInput) => {
     const userToken = process.env.LW_USER_TOKEN?.trim();
+    const writeKey = process.env.LW_WRITE_KEY?.trim();
     const apiBase = process.env.LW_API_BASE?.trim();
-    if (userToken && apiBase) {
-      return reply(await submitToCloud(args, { apiBase, userToken }) as unknown as Record<string, unknown>);
+    if (apiBase && (userToken || writeKey)) {
+      return reply(await submitToCloud(args, { apiBase, userToken, writeKey }) as unknown as Record<string, unknown>);
     }
     return reply(await submitToLocal(args) as unknown as Record<string, unknown>);
   }

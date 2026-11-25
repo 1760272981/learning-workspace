@@ -42,7 +42,7 @@ async function safeError(response: Response): Promise<string> {
 
 export async function submitToCloud(
   input: SubmitInput,
-  config: { apiBase: string; userToken: string; timeoutMs?: number; fetchImpl?: typeof fetch },
+  config: { apiBase: string; userToken?: string; writeKey?: string; timeoutMs?: number; fetchImpl?: typeof fetch },
 ): Promise<CloudSubmitReply> {
   let url: URL
   try {
@@ -59,7 +59,10 @@ export async function submitToCloud(
         'Content-Type': 'application/json',
         Accept: 'application/json',
         Origin: url.origin,
-        Authorization: `Bearer ${config.userToken}`,
+        // 双契约：沙箱用个人令牌 Bearer；旧站 legacy 用共享写密钥头。两者都配时令牌优先。
+        ...(config.userToken
+          ? { Authorization: `Bearer ${config.userToken}` }
+          : { 'x-lw-write-key': config.writeKey || '' }),
       },
       body: JSON.stringify(input),
       signal: AbortSignal.timeout(config.timeoutMs || 12000),

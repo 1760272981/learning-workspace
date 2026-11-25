@@ -44,6 +44,8 @@ MCP 使用 stdio。下面是配置结构示例，路径必须换成自己电脑�
 
 本地壳**不要设置** `LW_API_BASE` 和 `LW_USER_TOKEN`。Skill 位于 `skills/learning-capture/SKILL.md`，让 agent 完整阅读后再用；只有用户主动说“整理学习点”时才提交。
 
+云端写入双模式（二选一，都配时个人令牌优先）：评委沙箱用 `LW_API_BASE` + `LW_USER_TOKEN`（Bearer 个人令牌）；旧站 legacy 机制用 `LW_API_BASE` + `LW_WRITE_KEY`（共享写密钥头）。密钥与令牌真值只放在使用者自己的 agent 环境变量里，不进仓库与聊天。
+
 环境变量占位见 `.env.example`。注意：Node 不会自动读取 `.env`，需要由启动 MCP/本地服务的工具把变量传入进程。
 
 ## 验证是否真的接通

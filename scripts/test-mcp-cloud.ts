@@ -73,4 +73,35 @@ await check('非法 API_BASE 不发出请求', async () => {
   assert.equal((result as { error?: string }).error, 'invalid_lw_api_base')
 })
 
+await check('密钥模式显式带 x-lw-write-key 且不带 Authorization', async () => {
+  const writeKey = crypto.randomUUID()
+  const result = await submitToCloud(input, {
+    apiBase: config.apiBase,
+    writeKey,
+    timeoutMs: 50,
+    fetchImpl: async (_url, init) => {
+      const headers = new Headers(init?.headers)
+      assert.equal(headers.get('x-lw-write-key'), writeKey)
+      assert.equal(headers.get('Authorization'), null)
+      assert.equal(headers.get('Origin'), 'https://example.invalid')
+      return Response.json({ status: 'accepted', node_id: 'node', hints: [] })
+    },
+  })
+  assert.equal(result.status, 'accepted')
+})
+
+await check('令牌与密钥都配置时个人令牌优先', async () => {
+  const result = await submitToCloud(input, {
+    ...config,
+    writeKey: 'legacy-key-value',
+    fetchImpl: async (_url, init) => {
+      const headers = new Headers(init?.headers)
+      assert.equal(headers.get('Authorization'), `Bearer ${config.userToken}`)
+      assert.equal(headers.get('x-lw-write-key'), null)
+      return Response.json({ status: 'accepted', node_id: 'node', hints: [] })
+    },
+  })
+  assert.equal(result.status, 'accepted')
+})
+
 console.log(`\nMCP CLOUD ${passed} PASS`)

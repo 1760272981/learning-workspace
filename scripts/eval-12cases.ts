@@ -20,7 +20,7 @@ const dataPath = path.join(tmp, "lw-local-db.json");
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [serverPath],
-  env: { ...process.env, LW_LOCAL_DATA_FILE: dataPath, LW_USER_TOKEN: "", LW_API_BASE: "" },
+  env: { ...process.env, LW_LOCAL_DATA_FILE: dataPath, LW_USER_TOKEN: "", LW_API_BASE: "", LW_WRITE_KEY: "" },
 });
 const client = new Client({ name: "lw-eval-12", version: "0.1.0" });
 await client.connect(transport);
