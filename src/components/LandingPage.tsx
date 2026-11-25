@@ -80,7 +80,7 @@ export function LandingPage({ error, onClearError, onLogin, onRegister }: Props)
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 id="setup-prompt-title" className="font-display text-lg font-semibold">本地安装提示词</h3>
-              <p className="text-xs text-leaf-700/60 mt-1">整段复制给你的 agent；仓库地址公布后再执行克隆。</p>
+              <p className="text-xs text-leaf-700/60 mt-1">整段复制给你的 agent；仓库地址见上方「搬回家」卡片。</p>
             </div>
             <button type="button" onClick={() => void copy()} disabled={!prompt} className="rounded-full bg-leaf-600 px-4 py-2 text-sm font-semibold text-white hover:bg-leaf-700 disabled:opacity-40">一键复制</button>
           </div>
