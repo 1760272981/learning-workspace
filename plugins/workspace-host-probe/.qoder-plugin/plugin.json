@@ -1,0 +1,8 @@
+{
+  "name": "workspace-host-probe",
+  "displayName": "Learning Workspace 桌面联调",
+  "version": "0.1.0",
+  "description": "在 Qoder 插件页验证已登录宿主的一问一追，不读取项目资料。",
+  "author": { "name": "Learning Workspace" },
+  "keywords": ["mcp", "learning-workspace"]
+}

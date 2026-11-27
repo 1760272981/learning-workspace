@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning Workspace · 桌面联调</title>
+<style>
+  :root{color-scheme:light dark;font:16px/1.55 system-ui,sans-serif}body{margin:0;background:Canvas;color:CanvasText}main{max-width:740px;margin:32px auto;padding:0 24px}h1{font-size:1.55rem;margin:0 0 10px}.card{padding:18px;border:1px solid GrayText;border-radius:12px;margin:20px 0}button{font:inherit;padding:7px 14px;border-radius:8px;cursor:pointer}button:disabled{cursor:default;opacity:.5}#history{list-style:none;padding:0}li{margin:14px 0;padding:12px 0;border-bottom:1px solid GrayText}p{margin:8px 0;overflow-wrap:anywhere;white-space:pre-wrap}#status{min-height:3em}
+</style>
+<main>
+  <h1>Learning Workspace · 桌面联调</h1>
+  <p>仅发送合成问题。不读取项目、不改开发会话。Qoder 必须把真实回答经 MCP 写回这里，收到后才可发起追问。</p>
+  <section class="card" aria-label="宿主问答探针">
+    <p id="status" role="status">正在连接 Qoder…</p>
+    <button id="ask" type="button" disabled>发送首问</button>
+    <ol id="history" aria-label="本页收到的回答" aria-live="polite"></ol>
+  </section>
+</main>
+<script>/* APP_SCRIPT */</script>
+</html>

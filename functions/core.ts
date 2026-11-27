@@ -1,4 +1,4 @@
-import { applySubmit, normTitle, type Store, type SubmitInput, type SubmitResult } from './model.ts'
+import { applySubmit, applyProjectUpdate, normTitle, normalizeProjectUpdate, validateProjectUpdate, type ProjectEvent, type ProjectUpdateInput, type ProjectUpdateResult, type Store, type SubmitInput, type SubmitResult } from './model.ts'
 
 export interface ConceptRow {
   id: string
@@ -170,3 +170,32 @@ export async function stableUuid(parts: string[]): Promise<string> {
 export function conceptUuid(ownerId: string, projectId: string, title: string): Promise<string> {
   return stableUuid(['concept', ownerId, projectId, normTitle(title)])
 }
+
+// ---- 项目事件 ----
+
+export function projectEventUuid(ownerId: string, projectId: string, taskId: string, runId: string): Promise<string> {
+  return stableUuid(['project-event', ownerId, projectId.trim(), taskId.trim(), runId.trim()])
+}
+
+export async function sha256Hex(text: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+// 内容指纹只覆盖规范化后的业务字段，不含身份/时间/验收，重放同内容得到同指纹
+export function projectUpdateHash(input: ProjectUpdateInput): Promise<string> {
+  return sha256Hex(JSON.stringify(normalizeProjectUpdate(input)))
+}
+
+export function planProjectUpdate(
+  existing: ProjectEvent | null,
+  input: ProjectUpdateInput,
+  id: string,
+  ownerId: string,
+  receivedAt: string,
+  contentHash: string,
+): { result: ProjectUpdateResult; event: ProjectEvent | null } {
+  return applyProjectUpdate(existing, input, id, ownerId, receivedAt, contentHash)
+}
+
+export { validateProjectUpdate }

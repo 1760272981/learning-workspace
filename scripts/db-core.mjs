@@ -8,6 +8,9 @@ export function createDatabaseCore(options) {
     lw_applications: [['id'], ['concept_id', 'output_ref']],
     lw_verifications: [['id']],
     lw_marks: [['id'], ['project_id', 'concept_id']],
+    lw_events: [['id']],
+    lw_chat: [['id']],
+    lw_project_bindings: [['owner_id', 'project_id']],
   }
   let queue = Promise.resolve()
   const enqueue = (run) => queue = queue.then(run, run)

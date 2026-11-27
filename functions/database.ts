@@ -1,4 +1,5 @@
 import type { ApplicationRow, ConceptRow, MarkRow, StoreRows, VerificationRow } from './core.ts'
+import type { ProjectEvent, UserAcceptance } from './model.ts'
 
 interface DatabaseError {
   code?: string
@@ -136,4 +137,71 @@ export async function removeConceptRows(db: DatabaseClient, ownerId: string, pro
 
 export function removeEmptyConcept(db: DatabaseClient, ownerId: string, conceptId: string): Promise<void> {
   return write(query(db, 'lw_concepts').delete().eq('owner_id', ownerId).eq('id', conceptId))
+}
+
+// ---- 项目事件（lw_events）：payload 存整份事件（不含 acceptance），列供查询 ----
+
+export interface EventRow {
+  id: string
+  owner_id: string
+  project_id: string
+  task_id: string
+  run_id: string
+  content_hash: string
+  payload: Omit<ProjectEvent, 'acceptance'>
+  created_at: string
+  received_at: string
+  acceptance: UserAcceptance | null
+}
+
+function rowToEvent(row: EventRow): ProjectEvent {
+  return { ...(row.payload as Omit<ProjectEvent, 'acceptance'>), acceptance: (row.acceptance as UserAcceptance | null) ?? null }
+}
+
+export async function loadEvents(db: DatabaseClient, ownerId: string): Promise<ProjectEvent[]> {
+  const rows: DbRow[] = []
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await query(db, 'lw_events')
+      .select('id,owner_id,project_id,task_id,run_id,content_hash,payload,created_at,received_at,acceptance')
+      .eq('owner_id', ownerId).order('id').range(offset, offset + 499)
+    if (failed(error) || !Array.isArray(data)) throw new Error('database_request_failed')
+    rows.push(...data)
+    if (data.length < 500) break
+  }
+  return (rows as unknown as EventRow[])
+    .map(rowToEvent)
+    .sort((a, b) => b.received_at.localeCompare(a.received_at) || b.id.localeCompare(a.id))
+}
+
+export async function findEvent(db: DatabaseClient, ownerId: string, eventId: string): Promise<ProjectEvent | null> {
+  const { data, error } = await query(db, 'lw_events')
+    .select('id,owner_id,project_id,task_id,run_id,content_hash,payload,created_at,received_at,acceptance')
+    .eq('owner_id', ownerId).eq('id', eventId).limit(1)
+  if (failed(error) || !Array.isArray(data)) throw new Error('database_request_failed')
+  return data.length === 1 ? rowToEvent(data[0] as unknown as EventRow) : null
+}
+
+export function insertEvent(db: DatabaseClient, event: ProjectEvent): Promise<void> {
+  const { acceptance, ...payload } = event
+  const row: EventRow = {
+    id: event.id,
+    owner_id: event.owner_id,
+    project_id: event.project_id,
+    task_id: event.task_id,
+    run_id: event.run_id,
+    content_hash: event.content_hash,
+    payload,
+    created_at: event.created_at,
+    received_at: event.received_at,
+    acceptance,
+  }
+  return insertUnique(query(db, 'lw_events').insertIfAbsent({ ...row }, { onConflict: 'id' }).select('id'))
+}
+
+export async function acceptEvent(db: DatabaseClient, ownerId: string, eventId: string, acceptance: UserAcceptance): Promise<void> {
+  const { data, error } = await query(db, 'lw_events')
+    .update({ acceptance })
+    .eq('id', eventId).eq('owner_id', ownerId)
+    .select('id')
+  if (failed(error) || !Array.isArray(data) || data.length !== 1) throw new Error('database_request_failed')
 }

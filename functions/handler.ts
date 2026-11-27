@@ -1,20 +1,24 @@
-import { assembleStore, conceptUuid, isUuid, planSubmit, stableUuid } from './core.ts'
+import { assembleStore, conceptUuid, isUuid, planProjectUpdate, planSubmit, projectEventUuid, projectUpdateHash, stableUuid, validateProjectUpdate } from './core.ts'
 import {
   DuplicateRowError,
+  acceptEvent,
   conceptExists,
+  findEvent,
   insertApplication,
   insertConcept,
+  insertEvent,
   insertVerification,
+  loadEvents,
   loadRows,
   removeConceptRows,
   removeEmptyConcept,
   upsertMark,
   type DatabaseClient,
 } from './database.ts'
-import type { SubmitInput } from './model.ts'
+import type { ProjectUpdateInput, ProjectUpdateResult, SubmitInput, UserAcceptance } from './model.ts'
 
 const MAX_BODY_BYTES = 32 * 1024
-const WRITE_ACTIONS = new Set(['submit', 'mark', 'verify', 'delete'])
+const WRITE_ACTIONS = new Set(['submit', 'mark', 'verify', 'delete', 'update', 'accept'])
 
 class PayloadError extends Error {
   code: 'invalid_payload' | 'payload_too_large'
@@ -70,10 +74,10 @@ function textField(body: Record<string, unknown>, key: string): string {
 }
 
 function actionFrom(request: Request): string | null {
-  const path = new URL(request.url).pathname.match(/\/api\/(store|submit|mark|verify|delete)$/)
+  const path = new URL(request.url).pathname.match(/\/api\/(store|submit|mark|verify|delete|updates|update|accept)$/)
   if (path) return path[1]
   const action = new URL(request.url).searchParams.get('action')
-  return action && (action === 'store' || WRITE_ACTIONS.has(action)) ? action : null
+  return action && (action === 'store' || action === 'updates' || WRITE_ACTIONS.has(action)) ? action : null
 }
 
 export async function submit(db: DatabaseClient, ownerId: string, input: SubmitInput, receivedAt: string) {
@@ -117,6 +121,30 @@ export async function submit(db: DatabaseClient, ownerId: string, input: SubmitI
   throw new Error('database_request_failed')
 }
 
+// 项目事件提交：先校验（invalid 不触库），再按确定性身份查重，最后插入；
+// 唯一键冲突说明并发写入，重读对账（同内容 duplicate / 异内容 conflict），不盲目重发。
+export async function submitProjectUpdate(db: DatabaseClient, ownerId: string, input: ProjectUpdateInput, receivedAt: string): Promise<ProjectUpdateResult> {
+  const missing = validateProjectUpdate(input)
+  if (missing.length > 0) {
+    return { status: 'invalid', missing, hints: ['补齐必填字段；verified 必须附实际证据。修正后再提交，不要换身份绕过。'] }
+  }
+  const id = await projectEventUuid(ownerId, input.project!, input.task_id!, input.run_id!)
+  const contentHash = await projectUpdateHash(input)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = await findEvent(db, ownerId, id)
+    const plan = planProjectUpdate(existing, input, id, ownerId, receivedAt, contentHash)
+    if (!plan.event) return plan.result
+    try {
+      await insertEvent(db, plan.event)
+    } catch (error) {
+      if (error instanceof DuplicateRowError) continue
+      throw error
+    }
+    return plan.result
+  }
+  throw new Error('database_request_failed')
+}
+
 export async function handleLearningStore({ request, db, ownerId }: {
   request: Request
   db: DatabaseClient
@@ -128,6 +156,25 @@ export async function handleLearningStore({ request, db, ownerId }: {
     if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })
     try {
       return json(assembleStore(await loadRows(db, ownerId)))
+    } catch {
+      return json({ error: 'database_request_failed' }, 503)
+    }
+  }
+
+  if (action === 'updates') {
+    if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })
+    try {
+      const url = new URL(request.url)
+      const project = url.searchParams.get('project')?.trim() || ''
+      const taskId = url.searchParams.get('task_id')?.trim() || ''
+      const runId = url.searchParams.get('run_id')?.trim() || ''
+      const eventId = url.searchParams.get('event_id')?.trim() || ''
+      let events = await loadEvents(db, ownerId)
+      if (project) events = events.filter((e) => e.project_id === project)
+      if (taskId) events = events.filter((e) => e.task_id === taskId)
+      if (runId) events = events.filter((e) => e.run_id === runId)
+      if (eventId) events = events.filter((e) => e.id === eventId)
+      return json({ events })
     } catch {
       return json({ error: 'database_request_failed' }, 503)
     }
@@ -149,6 +196,23 @@ export async function handleLearningStore({ request, db, ownerId }: {
     if (action === 'submit') {
       const input = { ...body, project } as SubmitInput
       return json(await submit(db, ownerId, input, receivedAt))
+    }
+
+    if (action === 'update') {
+      const input = { ...body, project } as ProjectUpdateInput
+      return json(await submitProjectUpdate(db, ownerId, input, receivedAt))
+    }
+
+    if (action === 'accept') {
+      const eventId = textField(body, 'event_id')
+      const decision = textField(body, 'decision')
+      if (!isUuid(eventId) || (decision !== 'accepted' && decision !== 'rejected')) return json({ error: 'invalid_payload' }, 400)
+      const note = textField(body, 'note')
+      const existing = await findEvent(db, ownerId, eventId)
+      if (!existing || existing.project_id !== project) return json({ error: 'event_not_found' }, 404)
+      const acceptance: UserAcceptance = { status: decision, ...(note ? { note } : {}), at: receivedAt }
+      await acceptEvent(db, ownerId, eventId, acceptance)
+      return json({ ok: true, acceptance })
     }
 
     const conceptId = textField(body, 'concept_id')

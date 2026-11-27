@@ -8,7 +8,7 @@ import { handleLearningStore } from './handler.ts';
 
 const SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
 const encoder = new TextEncoder();
-const BUSINESS_ACTIONS = new Set(['store', 'submit', 'mark', 'verify', 'delete']);
+const BUSINESS_ACTIONS = new Set(['store', 'submit', 'mark', 'verify', 'delete', 'updates', 'update', 'accept']);
 
 class SessionRequired extends Error {
   constructor(state) {
@@ -172,11 +172,14 @@ async function route(db, request, origin) {
     return json(await revokeToken(db, session.userId, tokenRoute[1]));
   }
 
-  const businessPath = path.match(/^\/api\/(store|submit|mark|verify|delete)$/);
+  const businessPath = path.match(/^\/api\/(store|submit|mark|verify|delete|updates|update|accept)$/);
   const queryAction = path === '/' ? new URL(request.url).searchParams.get('action') : null;
   const action = businessPath?.[1] || queryAction;
   if (action && BUSINESS_ACTIONS.has(action)) {
-    const user = await requireIdentity(db, request);
+    // 用户验收只认网页会话身份，个人令牌（agent）不能代记验收
+    const user = action === 'accept'
+      ? await loadUser(db, (await requireSession(db, request)).userId)
+      : await requireIdentity(db, request);
     return handleLearningStore({ request, db, ownerId: user.id });
   }
 

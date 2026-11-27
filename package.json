@@ -12,11 +12,15 @@
     "sync:functions-model": "node scripts/sync-functions-model.mjs",
     "test:mcp": "node scripts/test-mcp.ts",
     "test:functions": "node scripts/test-functions.ts",
+    "test:updates": "node scripts/test-project-updates.ts",
+    "test:chat": "node scripts/test-learning-chat.ts",
+    "test:mcp-config": "node scripts/test-mcp-config.ts",
     "test:cloud": "node scripts/test-mcp-cloud.ts",
     "eval:12": "node scripts/eval-12cases.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "@qodercn-ai/qodercn-agent-sdk": "1.0.61",
     "framer-motion": "^14.12.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

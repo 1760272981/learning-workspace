@@ -5,12 +5,31 @@ import { NodeDetail } from './components/NodeDetail'
 import { AddKnowledgeModal } from './components/AddKnowledgeModal'
 import { LandingPage } from './components/LandingPage'
 import { TokenPanel } from './components/TokenPanel'
+import { ProjectUpdates } from './components/ProjectUpdates'
 import { ToastStack, type ToastItem } from './components/Toast'
 import { useKnowledgeStore } from './hooks/useKnowledgeStore'
+import { useProjectUpdates } from './hooks/useProjectUpdates'
 import type { MarkStatus, SubmitInput, SubmitResult, Concept } from './types'
 
 type SortKey = 'default' | 'newest' | 'branch' | 'title'
 type StatusFilter = 'all' | 'understood' | 'skipped' | 'unmarked'
+type View = 'tree' | 'updates'
+const VIEW_PREF_KEY = 'lw-view-pref'
+
+function readLinkedEvent(): string | null {
+  const id = new URLSearchParams(window.location.search).get('event')
+  return id && /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id) ? id : null
+}
+
+function readViewPreference(): View | null {
+  if (readLinkedEvent()) return 'updates'
+  try {
+    const value = window.localStorage.getItem(VIEW_PREF_KEY)
+    return value === 'tree' || value === 'updates' ? value : null
+  } catch {
+    return null
+  }
+}
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
@@ -38,6 +57,8 @@ export default function App() {
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [view, setView] = useState<View | null>(readViewPreference)
+  const updates = useProjectUpdates(user, mode)
   const [query, setQuery] = useState('')
   const [branchFilter, setBranchFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -119,7 +140,30 @@ export default function App() {
     setBranchFilter('all')
     setStatusFilter('all')
     setSort('default')
+    setView(readViewPreference())
   }, [user?.id])
+
+  useEffect(() => {
+    if (view === null && updates.loaded) setView(updates.events.length > 0 ? 'updates' : 'tree')
+  }, [view, updates.loaded, updates.events.length])
+
+  const clearLinkedEvent = () => {
+    const url = new URL(window.location.href)
+    if (!url.searchParams.has('event')) return
+    url.searchParams.delete('event')
+    window.history.replaceState(null, '', url)
+  }
+
+  const selectView = (next: View) => {
+    if (next === 'tree') clearLinkedEvent()
+    setView(next)
+    if (next === 'updates') setActiveId(null)
+    try {
+      window.localStorage.setItem(VIEW_PREF_KEY, next)
+    } catch {
+      // 浏览器禁用存储时，当前会话仍记住主动选择。
+    }
+  }
 
   const handleLogout = useCallback(async () => {
     if (logoutBusy) return
@@ -219,8 +263,15 @@ export default function App() {
         </div>
       </header>
 
-      {/* 工具栏：搜索 / 筛选 / 排序 / 统计 */}
+      {/* 工具栏：视图切换 / 搜索 / 筛选 / 排序 / 统计 */}
       <div className="shrink-0 z-20 px-4 sm:px-6 py-2.5 bg-cream/55 backdrop-blur border-b border-leaf-100 flex flex-wrap items-center gap-2">
+        <div className="flex rounded-full border border-leaf-200 bg-white/80 p-0.5" role="tablist" aria-label="视图切换">
+          <button role="tab" aria-selected={view === 'tree'} onClick={() => selectView('tree')}
+            className={`px-3 py-1 text-xs rounded-full font-semibold ${view === 'tree' ? 'bg-leaf-600 text-white' : 'text-leaf-700 hover:bg-leaf-50'}`}>知识树</button>
+          <button role="tab" aria-selected={view === 'updates'} onClick={() => selectView('updates')}
+            className={`px-3 py-1 text-xs rounded-full font-semibold ${view === 'updates' ? 'bg-leaf-600 text-white' : 'text-leaf-700 hover:bg-leaf-50'}`}>项目更新{updates.events.length > 0 ? ` ${updates.events.length}` : ''}</button>
+        </div>
+        {view === 'tree' && (<>
         <div className="relative flex-1 min-w-[160px] max-w-xs">
           <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-leaf-700/40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" /></svg>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索标题 / 分支 / 判断…" aria-label="搜索知识"
@@ -250,9 +301,10 @@ export default function App() {
           <span className="px-2 py-1 rounded-full bg-honey-100 border border-honey-300 text-honey-600">理解 <b>{stats.understood}</b></span>
           <span className="px-2 py-1 rounded-full bg-leaf-100 border border-leaf-200 text-leaf-800">验收 <b>{stats.verified}</b></span>
         </div>
+        </>)}
       </div>
 
-      {error && (
+      {view === 'tree' && error && (
         <div className={`shrink-0 px-4 sm:px-6 py-2 border-b text-sm flex items-center justify-between gap-3 ${usingCache ? 'bg-honey-50 border-honey-200 text-honey-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
           <span>{error}</span>
           <button onClick={() => setError(null)} aria-label="关闭错误提示" className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
@@ -261,6 +313,34 @@ export default function App() {
 
       {/* 主区域 */}
       <div className="flex-1 min-h-0 flex relative">
+        {view === 'updates' ? (
+          <div className="flex-1 min-w-0">
+            <ProjectUpdates
+              events={updates.events}
+              initialEventId={readLinkedEvent()}
+              onBackFromEvent={clearLinkedEvent}
+              projects={store.projects}
+              chatEnabled={mode === 'local'}
+              onOpenConcept={(project, id) => {
+                setProjectId(project)
+                clearFilters()
+                selectView('tree')
+                setActiveId(id)
+              }}
+              loading={updates.loading}
+              error={updates.error}
+              onClearError={() => updates.setError(null)}
+              onRefresh={() => void updates.refresh()}
+              onAccept={async (event, decision, note) => {
+                const acceptance = await updates.accept(event, decision, note)
+                if (acceptance) pushToast({ kind: acceptance.status === 'accepted' ? 'success' : 'warning', message: acceptance.status === 'accepted' ? '已记录你的验收' : '已记录：不通过' })
+                return acceptance
+              }}
+            />
+          </div>
+        ) : view === null ? (
+          <div className="flex-1 flex items-center justify-center text-sm text-leaf-700/70">正在读取项目更新…</div>
+        ) : (<>
         <div className="flex-1 min-w-0 relative">
           {loading ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-leaf-700/70">
@@ -334,6 +414,7 @@ export default function App() {
             </>
           )}
         </AnimatePresence>
+        </>)}
       </div>
 
       <AnimatePresence>
